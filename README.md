@@ -60,7 +60,7 @@ You'll see Graveyard load 3 sample incidents, enforce 10 rules learned from them
 
 ### Option 1 — Run the script directly (zero deps)
 ```bash
-curl -O https://raw.githubusercontent.com/mumernadeem/graveyard/main/src/cli/graveyard.py
+curl -O https://raw.githubusercontent.com/mumernadeem/graveyard/master/src/cli/graveyard.py
 chmod +x graveyard.py
 ./graveyard.py --help
 ```
@@ -255,7 +255,7 @@ Commit these to git, upload as CI artifacts, or pipe to your SOC 2 evidence syst
 ```yaml
 - uses: actions/checkout@v4
 - name: Run Graveyard Deploy Gates
-  uses: mumernadeem/graveyard@main
+  uses: mumernadeem/graveyard@master
   with:
     config: .graveyard.yml
     tests: test-results/
@@ -266,13 +266,13 @@ Commit these to git, upload as CI artifacts, or pipe to your SOC 2 evidence syst
 
 ```yaml
 include:
-  - remote: 'https://raw.githubusercontent.com/mumernadeem/graveyard/main/gitlab-ci-template.yml'
+  - remote: 'https://raw.githubusercontent.com/mumernadeem/graveyard/master/gitlab-ci-template.yml'
 ```
 
 ### Anywhere else (raw script)
 
 ```bash
-curl -O https://raw.githubusercontent.com/mumernadeem/graveyard/main/src/cli/graveyard.py
+curl -O https://raw.githubusercontent.com/mumernadeem/graveyard/master/src/cli/graveyard.py
 python3 graveyard.py check --tests ./results --k8s-dir ./k8s --output json
 ```
 
