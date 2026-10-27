@@ -256,6 +256,49 @@ class TestEnforceRules:
         assert results[0]["override"]["check"] == "k8s"
         assert results[0]["override"]["field"] == "block_latest"
 
+    def test_custom_command_pass(self):
+        incidents = [self._make_incident("Custom Cmd", "P1", [
+            {"type": "custom_command", "name": "Always True", "run": 'python3 -c "exit(0)"'}
+        ])]
+        results = enforce_rules(incidents, {})
+        assert results[0]["status"] == "PASS"
+        assert "Always True" in results[0]["rule"]
+
+    def test_custom_command_fail(self):
+        incidents = [self._make_incident("Custom Cmd", "P1", [
+            {"type": "custom_command", "name": "Always False", "run": 'python3 -c "exit(1)"'}
+        ])]
+        results = enforce_rules(incidents, {})
+        assert results[0]["status"] == "FAIL"
+        assert "Always False" in results[0]["rule"]
+
+    def test_blast_radius_inactive_day(self):
+        incidents = [self._make_incident("Blast Radius", "P2", [
+            {"type": "blast_radius", "max_lines": 100, "block_days": "neverday"}
+        ])]
+        results = enforce_rules(incidents, {})
+        assert results[0]["status"] == "PASS"
+        assert "not active today" in results[0]["rule"]
+
+    def test_env_check_pass(self):
+        os.environ["GRAVEYARD_TEST_VAR"] = "present"
+        try:
+            incidents = [self._make_incident("Env Check", "P2", [
+                {"type": "env_check", "required_vars": "GRAVEYARD_TEST_VAR"}
+            ])]
+            results = enforce_rules(incidents, {})
+            assert results[0]["status"] == "PASS"
+        finally:
+            os.environ.pop("GRAVEYARD_TEST_VAR", None)
+
+    def test_env_check_fail(self):
+        incidents = [self._make_incident("Env Check", "P2", [
+            {"type": "env_check", "required_vars": "NON_EXISTENT_VAR_XYZ_123"}
+        ])]
+        results = enforce_rules(incidents, {})
+        assert results[0]["status"] == "FAIL"
+        assert "NON_EXISTENT_VAR_XYZ_123" in results[0]["rule"]
+
     def test_unknown_rule_type_warns(self):
         incidents = [self._make_incident("Test", "P1", [{"type": "bogus_rule"}])]
         results = enforce_rules(incidents, {})

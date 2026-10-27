@@ -58,26 +58,25 @@ You'll see Graveyard load 3 sample incidents, enforce 10 rules learned from them
 
 ## 📦 Install
 
-### Option 1 — Run the script directly (zero deps)
+### Option 1 — Install via Pip (recommended)
 ```bash
-curl -O https://raw.githubusercontent.com/mumernadeem/graveyard/master/src/cli/graveyard.py
-chmod +x graveyard.py
-./graveyard.py --help
+pip install graveyard-cli
+# or run zero-install via pipx:
+pipx run graveyard-cli demo
 ```
 
-### Option 2 — Docker
-```bash
-docker run --rm -v $(pwd):/project ghcr.io/mumernadeem/graveyard:latest check
-```
-
-### Option 3 — Clone (recommended for now, until v1.0 is published)
+### Option 2 — Clone & Install Local / Editable
 ```bash
 git clone https://github.com/mumernadeem/graveyard.git
 cd graveyard
-python3 src/cli/graveyard.py demo
+pip install -e .
+graveyard demo
 ```
 
-> **PyPI / Homebrew packages coming with v1.0.** For now the CLI is a single Python file — `pip install` is intentionally not required.
+### Option 3 — Docker
+```bash
+docker run --rm -v $(pwd):/project ghcr.io/mumernadeem/graveyard:latest check
+```
 
 ---
 
@@ -146,39 +145,54 @@ graveyard check \
 
 ## 🧠 The Postmortem Rules Language
 
-Graveyard parses any markdown file in `incidents/` that contains a fenced ` ```graveyard ` code block. Six rule types are supported today:
+Graveyard parses any markdown file in `incidents/` that contains a fenced ` ```graveyard ` code block. Nine incident rule types are supported:
 
 ````markdown
 ## Deploy Rules
 
 ```graveyard
-# Block deployments on specific days/times
+# 1. Block deployments on specific days/times
 - type: deploy_window
   block_days: friday, saturday, sunday
   block_after: "16:00"
 
-# Override the global test pass-rate requirement
+# 2. Override the global test pass-rate requirement
 - type: min_pass_rate
   value: 99
 
-# Require a third-party dependency to be healthy
+# 3. Require a third-party dependency to be healthy
 - type: dependency
   url: https://api.stripe.com/healthcheck
   name: Stripe External API
 
-# Enforce minimum replicas for high availability
+# 4. Enforce minimum replicas for high availability
 - type: min_replicas
   value: 3
 
-# Block insecure container configurations
+# 5. Block insecure container configurations
 - type: image_tag
   block_latest: true
 
-# Force security scanning thresholds
+# 6. Force security scanning thresholds
 - type: security_scan
   required: true
   block_on: CRITICAL
   max_high: 0
+
+# 7. Run custom team verification scripts (database migrations, schemas, linters)
+- type: custom_command
+  name: "DB Migration backward-compatibility check"
+  run: "python scripts/check_migrations.py"
+
+# 8. Limit PR blast radius during sensitive deploy windows
+- type: blast_radius
+  max_lines: 500
+  max_files: 20
+  block_days: friday
+
+# 9. Verify critical environment variables are set before deploy
+- type: env_check
+  required_vars: DATABASE_URL, REDIS_URL
 ```
 ````
 
@@ -286,6 +300,8 @@ JSON output (`--output json`) is non-zero exit on BLOCK, perfect for any pipelin
 |---|---|
 | `graveyard check` | Run all enabled checks against the current project |
 | `graveyard demo` | 30-second demo using built-in sample data — zero setup |
+| `graveyard learn` | Convert any unstructured postmortem (file or text) into deploy gates via AI or smart heuristics |
+| `graveyard rules` | List all active incident rules, their source postmortems, and severities |
 | `graveyard init` | Detect your stack (Python/Node/Go, K8s, GitHub Actions, etc.) and write a starter config |
 | `graveyard validate` | Lint `.graveyard.yml` and all incident files for typos, unknown rule types, invalid values |
 

@@ -143,6 +143,53 @@ def parse_incident_file(filepath):
     return incident
 
 
+def _get_git_diff_stats():
+    """Attempt to get git diff stats (files, lines). Returns dict or None."""
+    import subprocess
+    try:
+        is_git = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            capture_output=True, text=True, timeout=5
+        )
+        if is_git.returncode != 0:
+            return None
+
+        base_ref = os.environ.get("GITHUB_BASE_REF")
+        target = f"origin/{base_ref}...HEAD" if base_ref else "HEAD~1"
+
+        proc = subprocess.run(
+            ["git", "diff", "--shortstat", target],
+            capture_output=True, text=True, timeout=5
+        )
+        if proc.returncode != 0:
+            proc = subprocess.run(
+                ["git", "diff", "--shortstat", "HEAD"],
+                capture_output=True, text=True, timeout=5
+            )
+            if proc.returncode != 0:
+                return None
+
+        output = proc.stdout.strip()
+        if not output:
+            return {"files": 0, "lines": 0}
+
+        files = 0
+        lines = 0
+        m_files = re.search(r'(\d+)\s+file', output)
+        if m_files:
+            files = int(m_files.group(1))
+        m_ins = re.search(r'(\d+)\s+insertion', output)
+        if m_ins:
+            lines += int(m_ins.group(1))
+        m_del = re.search(r'(\d+)\s+deletion', output)
+        if m_del:
+            lines += int(m_del.group(1))
+
+        return {"files": files, "lines": lines}
+    except Exception:
+        return None
+
+
 def enforce_rules(incidents, check_cfg):
     """
     Take all parsed incidents and evaluate their rules against current state.
@@ -279,6 +326,180 @@ def enforce_rules(incidents, check_cfg):
                         "severity": severity,
                         "override": {"check": "k8s", "field": "block_latest", "value": True},
                     })
+
+            # ── Custom Command check ─────────────────────────
+            elif rule_type == "custom_command":
+                cmd = rule.get("run") or rule.get("command")
+                name = rule.get("name") or cmd or "Custom check"
+                timeout_val = rule.get("timeout", 30)
+                try:
+                    timeout_sec = int(timeout_val)
+                except (ValueError, TypeError):
+                    timeout_sec = 30
+
+                if not cmd:
+                    results.append({
+                        "status": "WARN",
+                        "rule": "custom_command missing 'run' or 'command' attribute",
+                        "source": source,
+                        "severity": severity,
+                    })
+                else:
+                    import subprocess
+                    try:
+                        proc = subprocess.run(
+                            cmd,
+                            shell=True,
+                            capture_output=True,
+                            text=True,
+                            timeout=timeout_sec
+                        )
+                        if proc.returncode == 0:
+                            results.append({
+                                "status": "PASS",
+                                "rule": f"Command '{name}' passed",
+                                "source": source,
+                                "severity": severity,
+                            })
+                        else:
+                            snippet = (proc.stderr or proc.stdout or "").strip()
+                            if snippet:
+                                first_line = snippet.split("\n")[0][:80]
+                                err_detail = f": {first_line}"
+                            else:
+                                err_detail = f" (exit code {proc.returncode})"
+                            results.append({
+                                "status": "FAIL",
+                                "rule": f"Command '{name}' failed{err_detail}",
+                                "source": source,
+                                "severity": severity,
+                            })
+                    except subprocess.TimeoutExpired:
+                        results.append({
+                            "status": "FAIL",
+                            "rule": f"Command '{name}' timed out after {timeout_sec}s",
+                            "source": source,
+                            "severity": severity,
+                        })
+                    except Exception as e:
+                        results.append({
+                            "status": "FAIL",
+                            "rule": f"Command '{name}' error: {str(e)}",
+                            "source": source,
+                            "severity": severity,
+                        })
+
+            # ── Blast Radius check ───────────────────────────
+            elif rule_type == "blast_radius":
+                max_lines = rule.get("max_lines")
+                max_files = rule.get("max_files")
+                block_days = str(rule.get("block_days", ""))
+
+                day_matched = True
+                if block_days:
+                    day_matched = False
+                    for day in block_days.lower().split(","):
+                        if day.strip() in current_day:
+                            day_matched = True
+                            break
+
+                if not day_matched:
+                    results.append({
+                        "status": "PASS",
+                        "rule": f"Blast radius check not active today (active on: {block_days})",
+                        "source": source,
+                        "severity": severity,
+                    })
+                else:
+                    stats = _get_git_diff_stats()
+                    if stats is None:
+                        results.append({
+                            "status": "INFO",
+                            "rule": "Blast radius skipped (no git repository or diff available)",
+                            "source": source,
+                            "severity": severity,
+                        })
+                    else:
+                        failed = False
+                        reasons = []
+                        if max_lines is not None:
+                            try:
+                                max_l = int(max_lines)
+                                if stats["lines"] > max_l:
+                                    failed = True
+                                    reasons.append(f"{stats['lines']} lines changed (max: {max_l})")
+                            except (ValueError, TypeError):
+                                pass
+
+                        if max_files is not None:
+                            try:
+                                max_f = int(max_files)
+                                if stats["files"] > max_f:
+                                    failed = True
+                                    reasons.append(f"{stats['files']} files changed (max: {max_f})")
+                            except (ValueError, TypeError):
+                                pass
+
+                        if failed:
+                            results.append({
+                                "status": "FAIL",
+                                "rule": f"Blast radius exceeded: {', '.join(reasons)}",
+                                "source": source,
+                                "severity": severity,
+                            })
+                        else:
+                            results.append({
+                                "status": "PASS",
+                                "rule": f"Blast radius OK ({stats['files']} files, {stats['lines']} lines changed)",
+                                "source": source,
+                                "severity": severity,
+                            })
+
+            # ── Environment Variable check ───────────────────
+            elif rule_type == "env_check":
+                raw_vars = rule.get("required_vars") or rule.get("required_var") or rule.get("required", "")
+                if isinstance(raw_vars, list):
+                    var_list = [str(v).strip() for v in raw_vars if str(v).strip()]
+                else:
+                    var_list = [v.strip() for v in str(raw_vars).split(",") if v.strip()]
+
+                if not var_list:
+                    results.append({
+                        "status": "WARN",
+                        "rule": "env_check missing required variables",
+                        "source": source,
+                        "severity": severity,
+                    })
+                else:
+                    env_vals = dict(os.environ)
+                    if os.path.exists(".env"):
+                        try:
+                            with open(".env", "r") as ef:
+                                for eline in ef:
+                                    eline = eline.strip()
+                                    if eline and not eline.startswith("#") and "=" in eline:
+                                        ek, ev = eline.split("=", 1)
+                                        ek = ek.strip()
+                                        if ek not in env_vals:
+                                            env_vals[ek] = ev.strip()
+                        except Exception:
+                            pass
+
+                    missing = [v for v in var_list if not env_vals.get(v)]
+                    if missing:
+                        results.append({
+                            "status": "FAIL",
+                            "rule": f"Missing required env vars: {', '.join(missing)}",
+                            "source": source,
+                            "severity": severity,
+                        })
+                    else:
+                        results.append({
+                            "status": "PASS",
+                            "rule": f"Required env vars present ({len(var_list)} checked)",
+                            "source": source,
+                            "severity": severity,
+                        })
 
             # ── Unknown rule type ────────────────────────────
             else:

@@ -27,7 +27,12 @@ jobs:
       - name: Run tests
         run: pytest tests/unit/ -v --tb=short
 
+      - name: Install graveyard package
+        run: pip install -e .
+
       - name: Run CLI smoke test
         run: |
           python src/cli/graveyard.py check --config tests/ci-config.yml --tests tests/sample-results/passing.xml
+          graveyard rules
+          graveyard validate
           echo "Smoke test passed"

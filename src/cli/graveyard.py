@@ -72,6 +72,47 @@ def display_result(check_name, result):
     print(f"  {icon} {color}{C.BOLD}{check_name:14}{C.END} {msg}")
 
 
+def write_github_step_summary(project, environment, decision, results, ddr_path=None):
+    """Write markdown summary to GITHUB_STEP_SUMMARY in GitHub Actions environments."""
+    summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_file:
+        return
+    try:
+        icon_map = {"GO": "🟢", "CAUTION": "🟡", "BLOCK": "🔴"}
+        status_icon = {"PASS": "✅", "WARN": "⚠️", "FAIL": "❌", "SKIP": "⏭️"}
+
+        with open(summary_file, "a") as f:
+            f.write(f"## 🪦 Graveyard Deploy Gate: {icon_map.get(decision, '')} {decision}\n\n")
+            f.write(f"- **Project:** `{project}`\n")
+            f.write(f"- **Target Environment:** `{environment}`\n")
+            f.write(f"- **Deploy Decision:** `{decision}`\n\n")
+
+            f.write("### 🛡️ Checks Summary\n\n")
+            f.write("| Check | Status | Details |\n")
+            f.write("|---|---|---|\n")
+            for name, res in results.items():
+                st = res.get("status", "UNKNOWN")
+                ic = status_icon.get(st, "❓")
+                f.write(f"| {name} | {ic} {st} | {res.get('message', '')} |\n")
+
+            incident_res = results.get("Incident Gates", {})
+            enforced = incident_res.get("enforced_rules", [])
+            if enforced:
+                f.write("\n### 🧠 Incident-Trained Policies Enforced\n\n")
+                f.write("| Policy | Source Incident | Severity | Status |\n")
+                f.write("|---|---|---|---|\n")
+                for r in enforced:
+                    st = r.get("status", "INFO")
+                    ic = status_icon.get(st, "ℹ️")
+                    f.write(f"| {r.get('rule', '')} | {r.get('source', '')} | {r.get('severity', '-')} | {ic} {st} |\n")
+
+            if ddr_path:
+                f.write(f"\n> 📄 **Audit Trail:** Deploy Decision Record saved to `{ddr_path}`\n")
+            f.write("\n---\n*Enforced automatically by [Graveyard](https://github.com/mumernadeem/graveyard) — Turn your past incidents into unbreakable deploy gates.*\n\n")
+    except Exception:
+        pass
+
+
 # ─── Main ────────────────────────────────────────────────────────────────
 
 def cmd_check(args):
@@ -167,7 +208,8 @@ def cmd_check(args):
         elif has_warnings:
             overall = "CAUTION"
             
-        write_ddr(project, environment, overall, results)
+        ddr_path = write_ddr(project, environment, overall, results)
+        write_github_step_summary(project, environment, overall, results, ddr_path)
         
         json_data = {
             "project": project,
@@ -216,6 +258,7 @@ def cmd_check(args):
 
     # Write audit trail
     ddr_path = write_ddr(project, environment, overall_decision, results)
+    write_github_step_summary(project, environment, overall_decision, results, ddr_path)
     
     if ddr_path:
         print(f"  {C.CYAN}📄 DDR Saved:{C.END} {C.DIM}{ddr_path}{C.END}\n")
@@ -471,7 +514,8 @@ def cmd_validate(args):
     if os.path.isdir(incidents_dir):
         valid_types = [
             "deploy_window", "min_pass_rate", "min_replicas",
-            "dependency", "security_scan", "image_tag"
+            "dependency", "security_scan", "image_tag",
+            "custom_command", "blast_radius", "env_check"
         ]
         type_suggestions = {}
         for vt in valid_types:
@@ -512,6 +556,18 @@ def cmd_validate(args):
                         if isinstance(val, (int, float)) and (val < 0 or val > 100):
                             errors.append(f"{filepath}:rule#{i} — min_pass_rate must be 0–100, got {val}")
                             file_ok = False
+                    if rule_type == "custom_command":
+                        cmd = rule.get("run") or rule.get("command")
+                        if not cmd:
+                            errors.append(f"{filepath}:rule#{i} — custom_command requires 'run' or 'command'")
+                            file_ok = False
+                    if rule_type == "blast_radius":
+                        if not rule.get("max_lines") and not rule.get("max_files"):
+                            warnings.append(f"{filepath}:rule#{i} — blast_radius should specify 'max_lines' or 'max_files'")
+                    if rule_type == "env_check":
+                        if not (rule.get("required_vars") or rule.get("required_var") or rule.get("required")):
+                            errors.append(f"{filepath}:rule#{i} — env_check requires 'required_vars'")
+                            file_ok = False
 
             if file_ok:
                 ok_count += len(incident["rules"])
@@ -542,6 +598,118 @@ def cmd_validate(args):
     print()
 
 
+def cmd_rules(args):
+    """List all active incident rules extracted from postmortems."""
+    from checks.incident_check import parse_incident_file
+
+    incidents_dir = getattr(args, "dir", "incidents") or "incidents"
+    if not os.path.isdir(incidents_dir):
+        print(f"\n  {C.YELLOW}⚠ No incidents directory found at ./{incidents_dir}{C.END}\n")
+        return
+
+    files = [f for f in sorted(os.listdir(incidents_dir)) if f.endswith(".md") and f != "TEMPLATE.md"]
+    if not files:
+        print(f"\n  {C.DIM}No incident postmortems found in ./{incidents_dir}{C.END}\n")
+        return
+
+    all_rules = []
+    for f in files:
+        path = os.path.join(incidents_dir, f)
+        incident = parse_incident_file(path)
+        for r in incident.get("rules", []):
+            all_rules.append({
+                "rule": r,
+                "title": incident.get("title") or f,
+                "severity": incident.get("severity") or "P3",
+                "file": f,
+            })
+
+    print_panel("Graveyard — Active Incident Rules", f"{len(files)} postmortems → {len(all_rules)} deploy rules")
+
+    if not all_rules:
+        print(f"  {C.DIM}No rules found in postmortems.{C.END}\n")
+        return
+
+    print(f"  {C.BOLD}{'Rule Type / Details':<42} {'Source Incident':<26} {'Severity':<8}{C.END}")
+    print(f"  {C.DIM}{'─' * 78}{C.END}")
+
+    for item in all_rules:
+        r = item["rule"]
+        rtype = r.get("type", "unknown")
+        detail = ""
+        if rtype == "deploy_window":
+            detail = f"block {r.get('block_days', '')} after {r.get('block_after', 'all day')}"
+        elif rtype == "min_pass_rate":
+            detail = f"min pass rate: {r.get('value')}%"
+        elif rtype == "dependency":
+            detail = f"healthcheck: {r.get('name') or r.get('url')}"
+        elif rtype == "min_replicas":
+            detail = f"min replicas: {r.get('value')}"
+        elif rtype == "image_tag":
+            detail = "block :latest tag"
+        elif rtype == "security_scan":
+            detail = f"block on {r.get('block_on', 'CRITICAL')}"
+        elif rtype == "custom_command":
+            detail = f"run: {r.get('name') or r.get('run') or r.get('command')}"
+        elif rtype == "blast_radius":
+            detail = f"max lines: {r.get('max_lines', '-')} files: {r.get('max_files', '-')}"
+        elif rtype == "env_check":
+            detail = f"require: {r.get('required_vars') or r.get('required')}"
+        else:
+            detail = str(r)
+
+        display_text = f"{rtype}: {detail}"[:40]
+        title = item["title"][:24]
+        sev = item["severity"]
+        sev_color = C.RED if sev == "P1" else C.YELLOW if sev == "P2" else C.CYAN
+
+        print(f"  {C.BOLD}{display_text:<42}{C.END} {title:<26} {sev_color}{sev:<8}{C.END}")
+
+    print(f"\n  {C.DIM}Run 'graveyard check' to enforce these rules against your deploy.{C.END}\n")
+
+
+def cmd_learn(args):
+    """Ingest a postmortem file or text and extract Graveyard deploy rules."""
+    from incident_learner import learn_incident
+
+    source = args.source
+    if not source:
+        print(f"\n  {C.RED}❌ ERROR: Please provide an incident file or text to analyze.{C.END}")
+        print(f"  {C.DIM}Usage: graveyard learn path/to/postmortem.md [--save]{C.END}\n")
+        return
+
+    print_panel("Graveyard — Incident Rule Learner", "Converting postmortem into deploy gates")
+
+    result = learn_incident(
+        source,
+        save_dir="incidents",
+        output_file=args.out,
+        auto_save=args.save
+    )
+
+    data = result["data"]
+    rules = data.get("rules", [])
+    engine_name = result["engine"]
+
+    print(f"  {C.CYAN}Analysis Engine:{C.END} {engine_name}")
+    print(f"  {C.CYAN}Incident Title:{C.END}  {C.BOLD}{data.get('title')}{C.END}")
+    print(f"  {C.CYAN}Date & Severity:{C.END} {data.get('date')} ({data.get('severity')})")
+    print(f"  {C.CYAN}Service Target:{C.END}  {data.get('service')}")
+    print(f"  {C.CYAN}Extracted Rules:{C.END} {len(rules)} rule(s) inferred\n")
+
+    print(f"  {C.DIM}Generated Postmortem & Deploy Rules:{C.END}")
+    print(f"  {C.DIM}{'─' * 52}{C.END}")
+    for line in result["markdown"].split("\n"):
+        print(f"    {line}")
+    print(f"  {C.DIM}{'─' * 52}{C.END}\n")
+
+    if result.get("saved_to"):
+        print(f"  {C.GREEN}✓ Saved to:{C.END} {result['saved_to']}")
+        print(f"  {C.DIM}Run 'graveyard validate' to verify rules.{C.END}\n")
+    else:
+        print(f"  {C.YELLOW}Tip:{C.END} Pass {C.BOLD}--save{C.END} to automatically write this to {C.BOLD}incidents/{C.END}\n")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="graveyard",
@@ -568,6 +736,16 @@ def main():
     validate_parser = subparsers.add_parser("validate", help="Validate config and incident files")
     validate_parser.add_argument("--config", help="Path to .graveyard.yml config file")
 
+    # ── rules command ──
+    rules_parser = subparsers.add_parser("rules", help="List all active rules extracted from postmortems")
+    rules_parser.add_argument("--dir", default="incidents", help="Path to incidents directory (default: incidents)")
+
+    # ── learn command ──
+    learn_parser = subparsers.add_parser("learn", help="Convert an incident postmortem into deploy rules")
+    learn_parser.add_argument("source", help="Path to postmortem file or raw incident description")
+    learn_parser.add_argument("--save", action="store_true", help="Automatically save to incidents/ directory")
+    learn_parser.add_argument("--out", help="Specific destination filepath for the generated postmortem")
+
     args = parser.parse_args()
 
     if args.command == "check":
@@ -578,6 +756,10 @@ def main():
         cmd_init(args)
     elif args.command == "validate":
         cmd_validate(args)
+    elif args.command == "rules":
+        cmd_rules(args)
+    elif args.command == "learn":
+        cmd_learn(args)
     else:
         parser.print_help()
 
