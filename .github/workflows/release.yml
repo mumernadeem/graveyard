@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          name: "Graveyard ${{ github.ref_name }} — Incident-Trained Deploy Gates"
+          body: |
+            ## 🪦 Graveyard ${{ github.ref_name }}
+
+            Turn your past incidents into unbreakable deploy gates. Your worst days become your strongest safeguards.
+
+            ### ✨ Highlights in this release
+
+            - **📦 Standard Python Packaging**: Full `pip install graveyard-cli` and `pipx run graveyard-cli` compatibility via `pyproject.toml`.
+            - **🧠 AI & Smart Heuristic Incident Learner (`graveyard learn`)**: Ingest unstructured incident reports or text directly into enforceable deploy gates in seconds without manual YAML editing.
+            - **📋 Active Rules Overview (`graveyard rules`)**: View an interactive formatted table of all active rules, their source postmortems, and severities.
+            - **🛡️ Extended Rules Engine**:
+              - `custom_command`: Run any custom team verification script (e.g. database migration checks, schema validators, linters).
+              - `blast_radius`: Enforce line and file change limits on sensitive deploy windows (e.g. Friday deploys).
+              - `env_check`: Ensure critical environment variables and secrets are present prior to deployment.
+            - **📊 Native GitHub Step Summaries**: Automatic rich table summaries directly in `$GITHUB_STEP_SUMMARY` for every CI pipeline run.
+            - **🧪 Complete Unit Test Suite**: 56 unit tests passing across Python 3.9 through 3.13.
+
+            ### 🚀 Quick Install
+
+            ```bash
+            pip install graveyard-cli
+            # or zero-install via pipx:
+            pipx run graveyard-cli demo
+            ```
