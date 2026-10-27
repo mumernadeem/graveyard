@@ -185,6 +185,9 @@ def _parse_yaml_lines(lines, start_idx, base_indent):
 
 def _cast_value(value):
     """Convert string values to appropriate Python types."""
+    # Strip surrounding quotes (single or double)
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+        return value[1:-1]
     if value.lower() == "true":
         return True
     if value.lower() == "false":
@@ -245,12 +248,24 @@ def load_config(config_path=None):
 
 
 def get_check_config(config, check_name):
-    """Get the config for a specific check, with defaults applied."""
+    """Get the config for a specific check, with defaults applied.
+
+    Returns the check's config dict if it exists, or a sentinel
+    ``{"enabled": False}`` for checks not present in the config so that
+    downstream code can safely call ``is_check_enabled()`` and skip.
+    """
     checks = config.get("checks", {})
-    return checks.get(check_name, {})
+    if check_name in checks:
+        return checks[check_name]
+    return {"enabled": False}
 
 
 def is_check_enabled(config, check_name):
-    """Check if a specific check is enabled in the config."""
+    """Check if a specific check is enabled in the config.
+
+    If the check exists in the config but has no explicit ``enabled`` key,
+    it defaults to ``True``.  If the check is entirely absent from the
+    config, it is treated as disabled (``False``).
+    """
     check_cfg = get_check_config(config, check_name)
     return check_cfg.get("enabled", True)

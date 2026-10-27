@@ -29,5 +29,5 @@ jobs:
 
       - name: Run CLI smoke test
         run: |
-          python src/cli/graveyard.py check --tests tests/sample-results/passing.xml
+          python src/cli/graveyard.py check --config tests/ci-config.yml --tests tests/sample-results/passing.xml
           echo "Smoke test passed"

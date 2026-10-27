@@ -1,0 +1,17 @@
+# Minimal Graveyard config for CI smoke testing.
+# Only enables the tests check — no external dependencies, no image scans.
+project: ci-smoke-test
+environment: ci
+
+checks:
+  tests:
+    enabled: true
+    min_pass_rate: 90
+  security:
+    enabled: false
+  k8s:
+    enabled: false
+  dependencies:
+    enabled: false
+  cost:
+    enabled: false
