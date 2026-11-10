@@ -10,6 +10,12 @@
 </p>
 
 <p align="center">
+  <img src="assets/terminal-demo.gif" alt="graveyard demo: past incidents block a bad Kubernetes deploy" width="760" />
+  <br/>
+  <sub><a href="assets/terminal-demo.png">Static screenshot</a></sub>
+</p>
+
+<p align="center">
   <a href="https://github.com/mumernadeem/graveyard/actions/workflows/tests.yml"><img src="https://github.com/mumernadeem/graveyard/actions/workflows/tests.yml/badge.svg" alt="Tests" /></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python: 3.9+" /></a>
@@ -20,9 +26,6 @@
 
 Graveyard reads your postmortem markdown files, extracts the *"What we should have checked"* rules, and enforces them as actual deploy policies — every deploy, automatically.
 
-<p align="center">
-  <img src="assets/terminal-demo.png" alt="Graveyard Terminal Demo" width="700" />
-</p>
 
 ---
 
