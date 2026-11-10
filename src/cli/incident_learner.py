@@ -305,7 +305,7 @@ def learn_incident(input_text_or_path, save_dir="incidents", output_file=None, a
     Main learning logic: ingests text or file, parses into rules, and returns Markdown.
     """
     if os.path.isfile(input_text_or_path):
-        with open(input_text_or_path, "r") as f:
+        with open(input_text_or_path, "r", encoding="utf-8") as f:
             raw_text = f.read()
     else:
         raw_text = input_text_or_path
@@ -328,7 +328,7 @@ def learn_incident(input_text_or_path, save_dir="incidents", output_file=None, a
 
     if target_path:
         os.makedirs(os.path.dirname(target_path) or ".", exist_ok=True)
-        with open(target_path, "w") as f:
+        with open(target_path, "w", encoding="utf-8") as f:
             f.write(markdown_content)
 
     return {

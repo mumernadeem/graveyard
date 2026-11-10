@@ -2,7 +2,7 @@
 # Run incident-trained deploy gates in your CI/CD pipeline.
 #
 # Usage:
-#   docker run --rm -v $(pwd):/project ghcr.io/mumernadeem/graveyard:latest check
+#   docker run --rm -v $(pwd):/project graveyard:local check
 #
 # Build locally:
 #   docker build -t graveyard:local .

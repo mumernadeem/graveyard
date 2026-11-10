@@ -68,7 +68,7 @@ def _parse_simple_yaml(filepath):
     Handles: key: value, nested dicts, lists of scalars, and lists of dicts.
     NOT a full YAML parser — just enough for .graveyard.yml.
     """
-    with open(filepath, "r") as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
     return _parse_yaml_lines(lines, 0, 0)[0]
@@ -227,7 +227,7 @@ def load_config(config_path=None):
     # Read and parse the config file
     try:
         if yaml:
-            with open(config_path, "r") as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 user_config = yaml.safe_load(f) or {}
         else:
             user_config = _parse_simple_yaml(config_path)

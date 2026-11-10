@@ -51,3 +51,6 @@ graveyard = "cli.graveyard:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+cli = ["demo_data/*", "demo_data/**/*"]

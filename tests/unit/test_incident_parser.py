@@ -105,7 +105,7 @@ class TestParseIncidentFile:
 
     def _write_incident(self, filename, content):
         path = os.path.join(self.tmpdir, filename)
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(content)
         return path
 
@@ -258,7 +258,7 @@ class TestEnforceRules:
 
     def test_custom_command_pass(self):
         incidents = [self._make_incident("Custom Cmd", "P1", [
-            {"type": "custom_command", "name": "Always True", "run": 'python3 -c "exit(0)"'}
+            {"type": "custom_command", "name": "Always True", "run": "exit 0"}
         ])]
         results = enforce_rules(incidents, {})
         assert results[0]["status"] == "PASS"
@@ -266,7 +266,7 @@ class TestEnforceRules:
 
     def test_custom_command_fail(self):
         incidents = [self._make_incident("Custom Cmd", "P1", [
-            {"type": "custom_command", "name": "Always False", "run": 'python3 -c "exit(1)"'}
+            {"type": "custom_command", "name": "Always False", "run": "exit 1"}
         ])]
         results = enforce_rules(incidents, {})
         assert results[0]["status"] == "FAIL"
@@ -325,14 +325,14 @@ class TestRunIncidentCheck:
 
     def test_file_without_rules(self):
         path = os.path.join(self.tmpdir, "no-rules.md")
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write("# Incident: No rules\n## What Happened\nSomething.\n")
         result = run_incident_check(self.tmpdir, {})
         assert result["status"] == "SKIP"
 
     def test_valid_incident(self):
         path = os.path.join(self.tmpdir, "valid.md")
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write("""# Incident: Valid
 # Severity: P1
 

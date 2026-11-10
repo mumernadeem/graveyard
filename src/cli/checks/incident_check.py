@@ -87,7 +87,7 @@ def parse_incident_file(filepath):
     Extracts metadata from header comments and deploy rules from
     fenced ```graveyard code blocks.
     """
-    with open(filepath, "r") as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
     incident = {
@@ -474,7 +474,7 @@ def enforce_rules(incidents, check_cfg):
                     env_vals = dict(os.environ)
                     if os.path.exists(".env"):
                         try:
-                            with open(".env", "r") as ef:
+                            with open(".env", "r", encoding="utf-8") as ef:
                                 for eline in ef:
                                     eline = eline.strip()
                                     if eline and not eline.startswith("#") and "=" in eline:
