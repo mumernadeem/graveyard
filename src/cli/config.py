@@ -2,8 +2,11 @@
 Graveyard configuration loader.
 Reads .graveyard.yml from the current directory and merges with defaults.
 """
+import copy
 import os
 import sys
+
+from fileio import read_text
 
 try:
     import yaml
@@ -68,8 +71,7 @@ def _parse_simple_yaml(filepath):
     Handles: key: value, nested dicts, lists of scalars, and lists of dicts.
     NOT a full YAML parser — just enough for .graveyard.yml.
     """
-    with open(filepath, "r", encoding="utf-8") as f:
-        lines = f.readlines()
+    lines = read_text(filepath).splitlines(keepends=True)
 
     return _parse_yaml_lines(lines, 0, 0)[0]
 
@@ -221,29 +223,35 @@ def load_config(config_path=None):
         config_path = os.path.join(os.getcwd(), ".graveyard.yml")
 
     # If no config file exists, use defaults
+    # Callers mutate the returned config (incident overrides, extra
+    # dependencies), so always hand out a private deep copy of DEFAULTS.
     if not os.path.exists(config_path):
-        return DEFAULTS.copy(), False  # (config, was_file_found)
+        return copy.deepcopy(DEFAULTS), False  # (config, was_file_found)
 
     # Read and parse the config file
     try:
         if yaml:
-            with open(config_path, "r", encoding="utf-8") as f:
-                user_config = yaml.safe_load(f) or {}
+            user_config = yaml.safe_load(read_text(config_path)) or {}
         else:
             user_config = _parse_simple_yaml(config_path)
+    except UnicodeDecodeError as e:
+        # Never gate a deploy on defaults because the real config is unreadable.
+        print(f"\033[91mCannot decode config file '{config_path}': {e}\033[0m")
+        print("Save the file as UTF-8 and re-run.")
+        sys.exit(2)
     except Exception as e:
         print(f"\033[91mError reading config file '{config_path}': {e}\033[0m")
         print("Using default configuration.")
-        return DEFAULTS.copy(), False
+        return copy.deepcopy(DEFAULTS), False
 
     # Validate basic structure
     if not isinstance(user_config, dict):
         print(f"\033[91mInvalid config file: expected a YAML mapping, got {type(user_config).__name__}\033[0m")
         print("Using default configuration.")
-        return DEFAULTS.copy(), False
+        return copy.deepcopy(DEFAULTS), False
 
     # Merge user config with defaults (user wins on conflicts)
-    merged = _deep_merge(DEFAULTS, user_config)
+    merged = _deep_merge(copy.deepcopy(DEFAULTS), user_config)
     return merged, True
 
 
