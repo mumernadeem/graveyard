@@ -71,7 +71,7 @@ class TestIncidentLearner:
             result = learn_incident(sample_text, save_dir=tmpdir, auto_save=True)
             assert result["saved_to"] is not None
             assert os.path.exists(result["saved_to"])
-            with open(result["saved_to"], "r") as f:
+            with open(result["saved_to"], "r", encoding="utf-8") as f:
                 content = f.read()
             assert "```graveyard" in content
             assert "security_scan" in content

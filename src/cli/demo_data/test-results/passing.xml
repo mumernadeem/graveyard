@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="142" failures="0" errors="0" time="4.5">
+  <testsuite name="Authentication" errors="0" failures="0" skipped="0" timestamp="2026-04-30T10:00:00" time="1.2" tests="50">
+    <testcase classname="Auth" name="should login successfully" time="0.05" />
+    <testcase classname="Auth" name="should reject invalid password" time="0.04" />
+  </testsuite>
+  <testsuite name="Billing" errors="0" failures="0" skipped="0" timestamp="2026-04-30T10:00:01" time="3.3" tests="92">
+    <testcase classname="Billing" name="should process stripe webhook" time="0.1" />
+  </testsuite>
+</testsuites>

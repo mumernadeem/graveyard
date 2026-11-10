@@ -15,7 +15,7 @@ def validate_k8s_file(filepath, check_cfg):
     min_replicas = check_cfg.get("min_replicas", 2)
     expected_namespace = check_cfg.get("namespace", "default")
     
-    with open(filepath, "r") as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
     # Only validate Deployments for now

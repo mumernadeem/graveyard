@@ -32,7 +32,7 @@ class TestDDRWriter:
     def test_file_contains_project_name(self):
         results = {"Tests": {"status": "PASS", "message": "All passed"}}
         path = write_ddr("my-app", "production", "GO", results)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
         assert "my-app" in content
         assert "production" in content
@@ -40,7 +40,7 @@ class TestDDRWriter:
     def test_file_contains_decision(self):
         results = {"Tests": {"status": "FAIL", "message": "50% failed"}}
         path = write_ddr("app", "prod", "BLOCK", results)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
         assert "`BLOCK`" in content
 
@@ -50,7 +50,7 @@ class TestDDRWriter:
             "Security": {"status": "FAIL", "message": "3 CRITICAL CVEs"},
         }
         path = write_ddr("app", "prod", "BLOCK", results)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
         assert "100/100" in content
         assert "3 CRITICAL CVEs" in content
@@ -76,7 +76,7 @@ class TestDDRWriter:
             },
         }
         path = write_ddr("app", "prod", "GO", results)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
         assert "Deploy window OK" in content
         assert "Cache Incident" in content
@@ -94,6 +94,6 @@ class TestDDRWriter:
     def test_generated_by_graveyard(self):
         results = {"Tests": {"status": "PASS", "message": "ok"}}
         path = write_ddr("app", "prod", "GO", results)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
         assert "Graveyard CLI" in content

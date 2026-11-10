@@ -9,7 +9,7 @@ import sys
 import time
 
 # Add the CLI directory to path so we can import config
-CLI_DIR = os.path.dirname(os.path.abspath(__file__))
+CLI_DIR = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, CLI_DIR)
 
 from config import load_config, is_check_enabled, get_check_config
@@ -81,7 +81,7 @@ def write_github_step_summary(project, environment, decision, results, ddr_path=
         icon_map = {"GO": "🟢", "CAUTION": "🟡", "BLOCK": "🔴"}
         status_icon = {"PASS": "✅", "WARN": "⚠️", "FAIL": "❌", "SKIP": "⏭️"}
 
-        with open(summary_file, "a") as f:
+        with open(summary_file, "a", encoding="utf-8") as f:
             f.write(f"## 🪦 Graveyard Deploy Gate: {icon_map.get(decision, '')} {decision}\n\n")
             f.write(f"- **Project:** `{project}`\n")
             f.write(f"- **Target Environment:** `{environment}`\n")
@@ -167,12 +167,29 @@ def cmd_check(args):
             urls.append(dep)
             config["checks"]["dependencies"]["urls"] = urls
 
+    # Offline mode (used by `graveyard demo`): never make network calls.
+    offline = getattr(args, "offline", False)
+
+    def _dependency_check(cfg):
+        if not offline:
+            return run_dependency_check(cfg)
+        names = [
+            dep.get("name", dep.get("url", "unknown")) if isinstance(dep, dict) else str(dep)
+            for dep in cfg.get("urls", [])
+        ]
+        if not names:
+            return {"status": "SKIP", "message": "Offline mode — no network calls"}
+        return {
+            "status": "SKIP",
+            "message": f"Offline mode — would ping: {', '.join(names)}",
+        }
+
     # Run all standard enabled checks
     checks_to_run = [
         ("Tests",        "tests",        lambda cfg: run_test_check(args.tests, cfg)),
         ("Security",     "security",     lambda cfg: run_security_check(args.image, cfg)),
         ("K8s Config",   "k8s",          lambda cfg: run_k8s_check(k8s_dir, cfg)),
-        ("Dependencies", "dependencies", lambda cfg: run_dependency_check(cfg)),
+        ("Dependencies", "dependencies", _dependency_check),
         ("Cost Impact",  "cost",         lambda cfg: run_cost_check(k8s_dir, cfg)),
     ]
 
@@ -279,31 +296,41 @@ def cmd_check(args):
 
 def cmd_demo(args):
     """Run a built-in demo showing Graveyard in action with sample data."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    app_root = os.path.dirname(os.path.dirname(script_dir))
+    import shutil
+    import tempfile
 
-    # Find sample data
-    sample_tests = os.path.join(app_root, "tests", "sample-results", "passing.xml")
-    sample_k8s = os.path.join(app_root, "tests", "sample-k8s", "bad-deployment.yaml")
+    # Sample data ships inside the package, so the demo works the same from
+    # a git clone, a pip install, or the Docker image.
+    demo_data = os.path.join(CLI_DIR, "demo_data")
 
     print()
     print(f"  {C.CYAN}{C.BOLD}🪦 Graveyard Demo{C.END}")
     print(f"  {C.DIM}Showing what happens when your past incidents catch a bad deploy...{C.END}")
     print()
 
-    # Build a demo namespace with default args
+    if not os.path.isdir(demo_data):
+        print(f"  {C.RED}Demo data not found at {demo_data}{C.END}")
+        print(f"  {C.DIM}Reinstall Graveyard, or run the demo from a git clone.{C.END}")
+        print()
+        sys.exit(2)
+
+    # Run in a scratch copy so the demo never writes into the user's project
+    # or into the installed package.
+    demo_dir = os.path.join(tempfile.mkdtemp(prefix="graveyard-demo-"), "project")
+    shutil.copytree(demo_data, demo_dir)
+
     demo_args = argparse.Namespace(
-        config=None,
-        tests=sample_tests if os.path.exists(sample_tests) else None,
-        k8s_dir=sample_k8s if os.path.exists(sample_k8s) else None,
+        config="demo-config.yml",
+        tests=os.path.join("test-results", "passing.xml"),
+        k8s_dir=os.path.join("k8s", "bad-deployment.yaml"),
         image=None,
         namespace=None,
         output="text",
+        offline=True,  # No network calls during the demo
     )
 
-    # Temporarily change to app root so incidents/ is found
     original_cwd = os.getcwd()
-    os.chdir(app_root)
+    os.chdir(demo_dir)
     try:
         cmd_check(demo_args)
     except SystemExit:
@@ -314,7 +341,8 @@ def cmd_demo(args):
     print(f"  {C.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{C.END}")
     print(f"  {C.BOLD}That's Graveyard.{C.END}")
     print("  Your team's past incidents just blocked a bad deploy.")
-    print("  A Deploy Decision Record was saved to deploy-records/.")
+    print("  A Deploy Decision Record was saved to:")
+    print(f"  {C.DIM}{os.path.join(demo_dir, 'deploy-records')}{C.END}")
     print()
     print(f"  {C.DIM}Next steps:{C.END}")
     print(f"  {C.DIM}  graveyard init    → Set up Graveyard in your project{C.END}")
@@ -400,7 +428,7 @@ checks:
     warn_threshold: 200
     provider: aws
 """
-        with open(".graveyard.yml", "w") as f:
+        with open(".graveyard.yml", "w", encoding="utf-8") as f:
             f.write(config_content)
         print(f"  {C.GREEN}✓ Wrote{C.END} .graveyard.yml")
 
@@ -446,7 +474,7 @@ What was the blast radius? How was it resolved?]
 #   value: 98
 ```
 """
-        with open("incidents/TEMPLATE.md", "w") as f:
+        with open("incidents/TEMPLATE.md", "w", encoding="utf-8") as f:
             f.write(template)
         print(f"  {C.GREEN}✓ Created{C.END} incidents/ with postmortem template")
 
@@ -745,6 +773,14 @@ def main():
     learn_parser.add_argument("source", help="Path to postmortem file or raw incident description")
     learn_parser.add_argument("--save", action="store_true", help="Automatically save to incidents/ directory")
     learn_parser.add_argument("--out", help="Specific destination filepath for the generated postmortem")
+
+    # Windows consoles default to a legacy code page that cannot print the
+    # box-drawing characters and emoji used in the output.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
 
     args = parser.parse_args()
 

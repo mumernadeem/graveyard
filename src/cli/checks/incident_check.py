@@ -17,6 +17,8 @@ import os
 import re
 import datetime
 
+from fileio import read_text
+
 
 def _parse_rules_yaml(text):
     """
@@ -87,8 +89,7 @@ def parse_incident_file(filepath):
     Extracts metadata from header comments and deploy rules from
     fenced ```graveyard code blocks.
     """
-    with open(filepath, "r") as f:
-        content = f.read()
+    content = read_text(filepath)
 
     incident = {
         "file": os.path.basename(filepath),
@@ -472,24 +473,27 @@ def enforce_rules(incidents, check_cfg):
                     })
                 else:
                     env_vals = dict(os.environ)
+                    env_file_error = None
                     if os.path.exists(".env"):
                         try:
-                            with open(".env", "r") as ef:
-                                for eline in ef:
-                                    eline = eline.strip()
-                                    if eline and not eline.startswith("#") and "=" in eline:
-                                        ek, ev = eline.split("=", 1)
-                                        ek = ek.strip()
-                                        if ek not in env_vals:
-                                            env_vals[ek] = ev.strip()
-                        except Exception:
-                            pass
+                            for eline in read_text(".env").split("\n"):
+                                eline = eline.strip()
+                                if eline and not eline.startswith("#") and "=" in eline:
+                                    ek, ev = eline.split("=", 1)
+                                    ek = ek.strip()
+                                    if ek not in env_vals:
+                                        env_vals[ek] = ev.strip()
+                        except UnicodeDecodeError:
+                            env_file_error = "could not decode .env — save it as UTF-8"
+                        except OSError as e:
+                            env_file_error = f"could not read .env: {e}"
 
                     missing = [v for v in var_list if not env_vals.get(v)]
                     if missing:
+                        detail = f" ({env_file_error})" if env_file_error else ""
                         results.append({
                             "status": "FAIL",
-                            "rule": f"Missing required env vars: {', '.join(missing)}",
+                            "rule": f"Missing required env vars: {', '.join(missing)}{detail}",
                             "source": source,
                             "severity": severity,
                         })

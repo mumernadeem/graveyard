@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-app
+  namespace: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bad-app
+  template:
+    metadata:
+      labels:
+        app: bad-app
+    spec:
+      containers:
+      - name: web
+        image: my-app:latest
+        imagePullPolicy: Always
+        # Missing resources
+        # Missing livenessProbe
+        # Missing readinessProbe

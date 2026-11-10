@@ -158,7 +158,7 @@ def extract_resources_from_yaml(filepath):
     Extract CPU/memory requests and replica count from a K8s deployment YAML.
     Uses regex since we have no PyYAML dependency.
     """
-    with open(filepath, "r") as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
     if not re.search(r"^kind:\s*Deployment", content, re.MULTILINE):

@@ -1,0 +1,29 @@
+# Graveyard Demo Config — used only by `graveyard demo`.
+# The demo runs fully offline: dependency health checks learned from the
+# sample incidents are listed but not pinged.
+project: graveyard-demo
+environment: staging
+
+checks:
+  tests:
+    enabled: true
+    min_pass_rate: 90
+
+  security:
+    enabled: true
+    block_on: CRITICAL
+
+  k8s:
+    enabled: true
+    namespace: staging
+    require_limits: true
+    require_probes: true
+    min_replicas: 2
+
+  dependencies:
+    enabled: true
+
+  cost:
+    enabled: true
+    warn_threshold: 100
+    provider: hetzner

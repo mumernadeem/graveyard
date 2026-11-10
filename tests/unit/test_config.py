@@ -29,14 +29,14 @@ class TestLoadConfig:
         assert "checks" in config
 
     def test_loads_config_file(self):
-        with open(".graveyard.yml", "w") as f:
+        with open(".graveyard.yml", "w", encoding="utf-8") as f:
             f.write('project: "test-project"\nenvironment: "staging"\n')
         config, found = load_config(".graveyard.yml")
         assert found is True
         assert config["project"] == "test-project"
 
     def test_merge_with_defaults(self):
-        with open(".graveyard.yml", "w") as f:
+        with open(".graveyard.yml", "w", encoding="utf-8") as f:
             f.write('project: "my-app"\nchecks:\n  tests:\n    min_pass_rate: 80\n')
         config, found = load_config(".graveyard.yml")
         assert config["project"] == "my-app"

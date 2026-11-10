@@ -29,12 +29,11 @@ Graveyard reads your postmortem markdown files, extracts the *"What we should ha
 ## ⚡ See it in action (30 seconds)
 
 ```bash
-git clone https://github.com/mumernadeem/graveyard.git
-cd graveyard
-python3 src/cli/graveyard.py demo
+pip install git+https://github.com/mumernadeem/graveyard.git
+graveyard demo
 ```
 
-You'll see Graveyard load 3 sample incidents, enforce 10 rules learned from them, catch 5 problems in a bad K8s manifest, and write a Deploy Decision Record. **No setup, no config, no dependencies — runs on Python stdlib only.**
+You'll see Graveyard load 3 sample incidents, enforce 10 rules learned from them, catch 5 problems in a bad K8s manifest, and write a Deploy Decision Record. **No setup, no config, no network calls — runs on the Python standard library only**, on Linux, macOS and Windows.
 
 ---
 
@@ -42,27 +41,29 @@ You'll see Graveyard load 3 sample incidents, enforce 10 rules learned from them
 
 | Capability | Graveyard | OPA / Gatekeeper | Checkov | Trivy | GitHub Actions |
 |---|---|---|---|---|---|
-| **Learns from your incidents** | ✅ **Core feature** | ❌ | ❌ | ❌ | ❌ |
-| Postmortems → enforced rules | ✅ Automatic | ❌ | ❌ | ❌ | ❌ |
-| Deploy-window blocking (no-Friday-deploys) | ✅ | ❌ | ❌ | ❌ | Manual |
-| Audit trail per deploy (DDR) | ✅ Built-in | ❌ | ❌ | ❌ | ❌ |
-| K8s manifest validation | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Container security scan | ✅ via Trivy | ❌ | ❌ | ✅ | ❌ |
+| **Every rule traces back to the incident that caused it** | ✅ **Core feature** | ❌ | ❌ | ❌ | ❌ |
+| Rules live inside the postmortem (Markdown + YAML) | ✅ | ❌ (Rego) | ❌ | ❌ | ❌ |
+| Deploy-window blocking (no-Friday-deploys) | ✅ Built-in | Write it in Rego | ❌ | ❌ | Manual |
+| Audit record per deploy (DDR) | ✅ Built-in | Decision logs | ❌ | ❌ | Run logs |
+| K8s manifest validation | Basic (limits, probes, replicas, tags) | ✅ Full policy engine | ✅ | ✅ | ❌ |
+| Container vulnerability scan | Via Trivy | ❌ | Needs API key | ✅ | ❌ |
 | Test pass-rate gates | ✅ | ❌ | ❌ | ❌ | Manual |
-| Cloud cost estimation | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Cloud cost estimate | Rough estimate | ❌ | ❌ | ❌ | ❌ |
 | Single unified GO/CAUTION/BLOCK | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 **The difference:** Other tools check *what's in your code*. Graveyard checks *what your team has learned the hard way*. Every postmortem you write becomes a permanent guard rail.
+
+**Graveyard does not replace these tools.** Its K8s and security checks are deliberately basic (the security check calls Trivy). Run it alongside your policy engine and scanners: they enforce best practice, Graveyard enforces your own history.
 
 ---
 
 ## 📦 Install
 
-### Option 1 — Install via Pip (recommended)
+### Option 1 — Install with pip (recommended)
 ```bash
-pip install graveyard-cli
-# or run zero-install via pipx:
-pipx run graveyard-cli demo
+pip install git+https://github.com/mumernadeem/graveyard.git
+# or keep it isolated with pipx:
+pipx install git+https://github.com/mumernadeem/graveyard.git
 ```
 
 ### Option 2 — Clone & Install Local / Editable
@@ -73,9 +74,11 @@ pip install -e .
 graveyard demo
 ```
 
-### Option 3 — Docker
+### Option 3 — Docker (build locally)
 ```bash
-docker run --rm -v $(pwd):/project ghcr.io/mumernadeem/graveyard:latest check
+git clone https://github.com/mumernadeem/graveyard.git
+docker build -t graveyard ./graveyard
+docker run --rm -v $(pwd):/project graveyard check
 ```
 
 ---
@@ -283,11 +286,11 @@ include:
   - remote: 'https://raw.githubusercontent.com/mumernadeem/graveyard/master/gitlab-ci-template.yml'
 ```
 
-### Anywhere else (raw script)
+### Anywhere else
 
 ```bash
-curl -O https://raw.githubusercontent.com/mumernadeem/graveyard/master/src/cli/graveyard.py
-python3 graveyard.py check --tests ./results --k8s-dir ./k8s --output json
+pip install git+https://github.com/mumernadeem/graveyard.git
+graveyard check --tests ./results --k8s-dir ./k8s --output json
 ```
 
 JSON output (`--output json`) is non-zero exit on BLOCK, perfect for any pipeline.
@@ -309,7 +312,6 @@ JSON output (`--output json`) is non-zero exit on BLOCK, perfect for any pipelin
 
 ## 📚 Documentation
 
-- [Client Onboarding Guide](CLIENT_ONBOARDING_GUIDE.md) — full walkthrough for first-time users
 - [Examples: Famous Incidents](examples/famous-incidents/) — real-world postmortems with Deploy Rules
 - [Contributing](CONTRIBUTING.md) — how to add rule types, fix bugs, or contribute new incident reconstructions
 - [Architecture](CONTRIBUTING.md#architecture) — how the codebase is organised

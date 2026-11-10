@@ -36,14 +36,14 @@ def _get_git_info(project_dir="."):
         if os.path.exists(git_dir):
             head_path = os.path.join(git_dir, "HEAD")
             if os.path.exists(head_path):
-                with open(head_path, "r") as f:
+                with open(head_path, "r", encoding="utf-8") as f:
                     head_ref = f.read().strip()
                     if head_ref.startswith("ref: "):
                         branch = head_ref.split("/")[-1]
                         info["branch"] = branch
                         ref_path = os.path.join(git_dir, head_ref[5:])
                         if os.path.exists(ref_path):
-                            with open(ref_path, "r") as rf:
+                            with open(ref_path, "r", encoding="utf-8") as rf:
                                 info["commit"] = rf.read().strip()[:7]
     except Exception:
         pass
@@ -73,7 +73,7 @@ def write_ddr(project, environment, decision, results, overrides=None):
     filename = f"{file_timestamp}-{project}-{environment}-{decision.lower()}.md"
     filepath = os.path.join(ddr_dir, filename)
     
-    with open(filepath, "w") as f:
+    with open(filepath, "w", encoding="utf-8") as f:
         f.write(f"# Deploy Decision Record: {project} → {environment}\n\n")
         
         f.write("## 📝 Metadata\n")
